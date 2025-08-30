@@ -21,18 +21,21 @@ func main() {
 	const filepathRoot = "."
 	const port = "8080"
 
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file", err)
-		return
-	}
+	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
-	db, err := sql.Open("postgres", dbURL)
-	dbQueries := database.New(db)
+	if dbURL == "" {
+		log.Fatal("DB_URL must be set")
+	}
+
+	dbConn, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Fatalf("Error opening database: %s", err)
+	}
+	dbQueries := database.New(dbConn)
 
 	apiCfg := apiConfig{
-		db:             dbQueries,
 		fileserverHits: atomic.Int32{},
+		db:             dbQueries,
 	}
 
 	mux := http.NewServeMux()
