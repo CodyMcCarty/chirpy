@@ -15,3 +15,10 @@ goose postgres protocol://username:password@host:port/database  (up or down)
 cd sql/schema/
 goose postgres postgres://postgres:postgres@localhost:5432/chirpy up
 ```
+
+how to new sql queries
+```bash
+cd project root
+
+sqlc generate
+```
