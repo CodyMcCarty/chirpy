@@ -2,14 +2,12 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"sync/atomic"
 
 	"github.com/CodyMcCarty/chirpy/internal/database"
-	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
@@ -58,6 +56,8 @@ func main() {
 
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
 
+	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.handlerWebhook)
+
 	mux.HandleFunc("POST /api/login", apiCfg.handlerLogin)
 	mux.HandleFunc("POST /api/refresh", apiCfg.handlerRefresh)
 	mux.HandleFunc("POST /api/revoke", apiCfg.handlerRevoke)
@@ -70,8 +70,6 @@ func main() {
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerChirpsGet)
 	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handlerChirpsDelete)
 
-	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.handlerUsersUpdateRed)
-
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 
@@ -82,36 +80,4 @@ func main() {
 
 	log.Printf("Serving on port: %s\n", port)
 	log.Fatal(srv.ListenAndServe())
-}
-
-func (cfg *apiConfig) handlerUsersUpdateRed(w http.ResponseWriter, r *http.Request) {
-	type parameters struct {
-		Event string `json:"event"`
-		Data  struct {
-			UserID uuid.UUID `json:"user_id"`
-		} `json:"data"`
-	}
-
-	decoder := json.NewDecoder(r.Body)
-	params := parameters{}
-	err := decoder.Decode(&params)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
-		return
-	}
-
-	if params.Event != "user.upgraded" {
-		respondWithError(w, 204, "not user.upgraded event", nil)
-		return
-	}
-
-	_, err = cfg.db.UpgradeToChirpyRed(r.Context(), database.UpgradeToChirpyRedParams{
-		IsChirpyRed: true,
-		ID:          params.Data.UserID,
-	})
-	if err != nil {
-		respondWithError(w, 404, "Couldn't upgrade to Chirpy Red", err)
-		return
-	}
-	w.WriteHeader(204)
 }
