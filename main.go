@@ -5,8 +5,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync/atomic"
+	"time"
 
+	"github.com/CodyMcCarty/chirpy/internal/auth"
 	"github.com/CodyMcCarty/chirpy/internal/database"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -57,6 +60,8 @@ func main() {
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
 
 	mux.HandleFunc("POST /api/login", apiCfg.handlerLogin)
+	mux.HandleFunc("POST /api/refresh", apiCfg.handlerRefresh)
+	mux.HandleFunc("POST /api/revoke", apiCfg.handlerRevoke)
 
 	mux.HandleFunc("POST /api/users", apiCfg.handlerUsersCreate)
 
@@ -74,4 +79,52 @@ func main() {
 
 	log.Printf("Serving on port: %s\n", port)
 	log.Fatal(srv.ListenAndServe())
+}
+
+func (cfg *apiConfig) handlerRefresh(w http.ResponseWriter, r *http.Request) {
+	type response struct {
+		Token string `json:"token"`
+	}
+
+	refreshToken, ok := bearerTokenFromHeader(r)
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Missing/invalid Authorization header", nil)
+		return
+	}
+
+	user, err := cfg.db.GetUserFromRefreshToken(r.Context(), refreshToken)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Invalid or expired refresh token", nil)
+		return
+	}
+
+	const accessTTL = time.Hour
+	newAccess, err := auth.MakeJWT(user.ID, cfg.jwtSecret, accessTTL)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create access JWT", nil)
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, response{Token: newAccess})
+}
+
+func (cfg *apiConfig) handlerRevoke(w http.ResponseWriter, r *http.Request) {
+	refreshToken, ok := bearerTokenFromHeader(r)
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Missing/invalid Authorization header", nil)
+		return
+	}
+
+	_, _ = cfg.db.RevokeRefreshToken(r.Context(), refreshToken)
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func bearerTokenFromHeader(r *http.Request) (string, bool) {
+	h := r.Header.Get("Authorization")
+	parts := strings.SplitN(h, " ", 2)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || parts[1] == "" {
+		return "", false
+	}
+	return parts[1], true
 }

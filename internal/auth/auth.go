@@ -1,11 +1,14 @@
 package auth
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
+
+	"crypto/rand"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -96,4 +99,12 @@ func GetBearerToken(headers http.Header) (string, error) {
 	}
 
 	return splitAuth[1], nil
+}
+
+func MakeRefreshToken() (string, error) {
+	key := make([]byte, 32)
+	_, _ = rand.Read(key)
+
+	encodedStr := hex.EncodeToString(key)
+	return encodedStr, nil
 }
