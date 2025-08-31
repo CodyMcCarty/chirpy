@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
@@ -105,6 +106,74 @@ func TestValidateJWT(t *testing.T) {
 			}
 			if gotUserID != tt.wantUserID {
 				t.Errorf("ValidateJWT() gotUserID = %v, want %v", gotUserID, tt.wantUserID)
+			}
+		})
+	}
+}
+
+func TestGetBearerToken(t *testing.T) {
+	tests := []struct {
+		name      string
+		headerVal string // value to set for "Authorization" (empty => header omitted)
+		wantToken string
+		wantErr   bool
+	}{
+		{
+			name:      "Valid bearer token",
+			headerVal: "Bearer abc123",
+			wantToken: "abc123",
+			wantErr:   false,
+		},
+		{
+			name:      "Extra spaces after scheme",
+			headerVal: "Bearer     xyz789",
+			wantToken: "xyz789",
+			wantErr:   false,
+		},
+		{
+			name:      "Empty token after scheme",
+			headerVal: "Bearer ",
+			wantToken: "",
+			wantErr:   true,
+		},
+		{
+			name:      "Missing header",
+			headerVal: "",
+			wantToken: "",
+			wantErr:   true,
+		},
+		{
+			name:      "Wrong scheme",
+			headerVal: "Token abc123",
+			wantToken: "",
+			wantErr:   true,
+		},
+		{
+			name:      "Lowercase scheme (case-sensitive error)",
+			headerVal: "bearer abc123",
+			wantToken: "",
+			wantErr:   true,
+		},
+		{
+			name:      "No space after scheme",
+			headerVal: "Bearerabc123",
+			wantToken: "",
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := http.Header{}
+			if tt.headerVal != "" {
+				h.Set("Authorization", tt.headerVal)
+			}
+			token, err := GetBearerToken(h)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("GetBearerToken() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && token != tt.wantToken {
+				t.Fatalf("GetBearerToken() token = %q, want %q", token, tt.wantToken)
 			}
 		})
 	}
