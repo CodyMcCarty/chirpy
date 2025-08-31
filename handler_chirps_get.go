@@ -2,6 +2,8 @@ package main
 
 import (
 	"net/http"
+	"sort"
+	"strings"
 
 	"github.com/CodyMcCarty/chirpy/internal/database"
 	"github.com/google/uuid"
@@ -48,9 +50,18 @@ func (cfg *apiConfig) handlerChirpsRetrieve(w http.ResponseWriter, r *http.Reque
 		}
 		dbChirps, err = cfg.db.GetChirpsByAuthor(r.Context(), authorId)
 	}
+
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't retrieve chirps", err)
 		return
+	}
+
+	sortStr := r.URL.Query().Get("sort")
+	sortStr = strings.ToLower(sortStr)
+	if sortStr == "desc" {
+		sort.Slice(dbChirps, func(i, j int) bool {
+			return dbChirps[i].CreatedAt.After(dbChirps[j].CreatedAt)
+		})
 	}
 
 	chirps := []Chirp{}
