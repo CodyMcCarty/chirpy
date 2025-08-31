@@ -23,18 +23,16 @@ type Chirp struct {
 func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Body string `json:"body"`
-		//UserID uuid.UUID `json:"user_id"`
 	}
 
 	token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "Couldn't get bearer token", err)
+		respondWithError(w, http.StatusUnauthorized, "Couldn't find JWT", err)
 		return
 	}
-
-	userId, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
 	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "In Valid bearer token", err)
+		respondWithError(w, http.StatusUnauthorized, "Couldn't validate JWT", err)
 		return
 	}
 
@@ -54,7 +52,7 @@ func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, r *http.Request
 
 	chirp, err := cfg.db.CreateChirp(r.Context(), database.CreateChirpParams{
 		Body:   cleaned,
-		UserID: userId,
+		UserID: userID,
 	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't create chirp", err)

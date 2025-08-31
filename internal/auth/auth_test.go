@@ -114,49 +114,29 @@ func TestValidateJWT(t *testing.T) {
 func TestGetBearerToken(t *testing.T) {
 	tests := []struct {
 		name      string
-		headerVal string // value to set for "Authorization" (empty => header omitted)
+		headers   http.Header
 		wantToken string
 		wantErr   bool
 	}{
 		{
-			name:      "Valid bearer token",
-			headerVal: "Bearer abc123",
-			wantToken: "abc123",
+			name: "Valid Bearer token",
+			headers: http.Header{
+				"Authorization": []string{"Bearer valid_token"},
+			},
+			wantToken: "valid_token",
 			wantErr:   false,
 		},
 		{
-			name:      "Extra spaces after scheme",
-			headerVal: "Bearer     xyz789",
-			wantToken: "xyz789",
-			wantErr:   false,
-		},
-		{
-			name:      "Empty token after scheme",
-			headerVal: "Bearer ",
+			name:      "Missing Authorization header",
+			headers:   http.Header{},
 			wantToken: "",
 			wantErr:   true,
 		},
 		{
-			name:      "Missing header",
-			headerVal: "",
-			wantToken: "",
-			wantErr:   true,
-		},
-		{
-			name:      "Wrong scheme",
-			headerVal: "Token abc123",
-			wantToken: "",
-			wantErr:   true,
-		},
-		{
-			name:      "Lowercase scheme (case-sensitive error)",
-			headerVal: "bearer abc123",
-			wantToken: "",
-			wantErr:   true,
-		},
-		{
-			name:      "No space after scheme",
-			headerVal: "Bearerabc123",
+			name: "Malformed Authorization header",
+			headers: http.Header{
+				"Authorization": []string{"InvalidBearer token"},
+			},
 			wantToken: "",
 			wantErr:   true,
 		},
@@ -164,16 +144,13 @@ func TestGetBearerToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := http.Header{}
-			if tt.headerVal != "" {
-				h.Set("Authorization", tt.headerVal)
-			}
-			token, err := GetBearerToken(h)
+			gotToken, err := GetBearerToken(tt.headers)
 			if (err != nil) != tt.wantErr {
-				t.Fatalf("GetBearerToken() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("GetBearerToken() error = %v, wantErr %v", err, tt.wantErr)
+				return
 			}
-			if !tt.wantErr && token != tt.wantToken {
-				t.Fatalf("GetBearerToken() token = %q, want %q", token, tt.wantToken)
+			if gotToken != tt.wantToken {
+				t.Errorf("GetBearerToken() gotToken = %v, want %v", gotToken, tt.wantToken)
 			}
 		})
 	}

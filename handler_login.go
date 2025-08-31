@@ -6,21 +6,18 @@ import (
 	"time"
 
 	"github.com/CodyMcCarty/chirpy/internal/auth"
-	"github.com/google/uuid"
 )
 
 func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Password         string `json:"password"`
 		Email            string `json:"email"`
-		ExpiresInSeconds *int   `json:"expires_in_seconds,omitempty"`
+		ExpiresInSeconds int    `json:"expires_in_seconds"`
 	}
 	type response struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
-		Token     string    `json:"token"`
+		User
+		Token        string `json:"token"`
+		RefreshToken string `json:"refresh_token"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -43,25 +40,28 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exp := time.Hour // default
-	if params.ExpiresInSeconds != nil {
-		secs := *params.ExpiresInSeconds
-		if secs < 3600 {
-			exp = time.Duration(secs) * time.Second
-		}
+	expirationTime := time.Hour
+	if params.ExpiresInSeconds > 0 && params.ExpiresInSeconds < 3600 {
+		expirationTime = time.Duration(params.ExpiresInSeconds) * time.Second
 	}
 
-	token, err := auth.MakeJWT(user.ID, cfg.jwtSecret, exp)
+	accessToken, err := auth.MakeJWT(
+		user.ID,
+		cfg.jwtSecret,
+		expirationTime,
+	)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't create JWT", err)
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create access JWT", err)
 		return
 	}
 
 	respondWithJSON(w, http.StatusOK, response{
-		ID:        user.ID,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Token:     token,
+		User: User{
+			ID:        user.ID,
+			CreatedAt: user.CreatedAt,
+			UpdatedAt: user.UpdatedAt,
+			Email:     user.Email,
+		},
+		Token: accessToken,
 	})
 }
